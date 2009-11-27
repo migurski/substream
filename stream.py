@@ -75,12 +75,12 @@ class TweetHandler(xml.sax.handler.ContentHandler):
         if len(self.stack):
             if self.stack[-1] == 'limit':
                 if name == 'track':
-                    print >> sys.stderr, '*' * 80, ''.join(self.chars)
+                    print '*' * 80, ''.join(self.chars)
             if self.stack[-1] == 'status':
                 if name == 'id':
                     self.id = ''.join(self.chars)
                 if name == 'text':
-                    self.text = ''.join(self.chars).replace('&lt;', '<').replace('&gt;', '>')
+                    self.text = ''.join(self.chars).replace('&lt;', '<').replace('&gt;', '>').replace('\r', ' ').replace('\n', ' ')
             if self.stack[-1] == 'user':
                 if name == 'location':
                     self.location = ''.join(self.chars)
@@ -88,9 +88,9 @@ class TweetHandler(xml.sax.handler.ContentHandler):
                     self.screen_name = ''.join(self.chars)
 
     def endDocument(self):
-        #print >> sys.stderr, self.id, self.text
-        #print >> sys.stderr, '-', self.screen_name, self.location
-        print >> sys.stderr, self.screen_name, '-', self.text
+        #print self.id, self.text
+        #print '-', self.screen_name, self.location
+        print '%20s - %s' % (self.screen_name, self.text)
 
 parser = optparse.OptionParser(usage="""stream.py [options]
 """)
@@ -125,11 +125,9 @@ if __name__ == '__main__':
     firehose = opener.open(request)
     handler = TweetHandler()
     
-    # prime it
-    line = firehose.readline()
-    
     while True:
         # read tweets line-by-line, breaking on lines that start with an XML header
+        line = firehose.readline()
 
         if line.startswith('<?xml'):
             # at the beginning of a tweet, collect each line of XML into a list
