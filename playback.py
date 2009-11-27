@@ -6,7 +6,9 @@ if __name__ == '__main__':
     
     while store.llen('stream'):
         key = store.pop('stream')
-        tweet = json.loads(store.get(key))
-        store.delete(key)
-    
-        print '%(screen_name)20s - %(text)s' % tweet
+
+        if store.exists(key):
+            tweet = json.loads(store.get(key))
+            store.delete(key)
+        
+            print '%(screen_name)20s - %(text)s' % tweet
