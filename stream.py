@@ -1,5 +1,7 @@
 import pdb
 import sys
+import json
+import redis
 import urllib
 import urllib2
 import optparse
@@ -56,11 +58,7 @@ class TweetHandler(xml.sax.handler.ContentHandler):
         """
         self.stack = []
         self.chars = None
-
-        self.id = None
-        self.text = None
-        self.location = None
-        self.screen_name = None
+        self.tweet = {}
 
     def startElement(self, name, attrs):
         self.stack.append(name)
@@ -78,19 +76,27 @@ class TweetHandler(xml.sax.handler.ContentHandler):
                     print '*' * 80, ''.join(self.chars)
             if self.stack[-1] == 'status':
                 if name == 'id':
-                    self.id = ''.join(self.chars)
+                    self.tweet['id'] = ''.join(self.chars)
                 if name == 'text':
-                    self.text = ''.join(self.chars).replace('&lt;', '<').replace('&gt;', '>').replace('\r', ' ').replace('\n', ' ')
+                    self.tweet['text'] = ''.join(self.chars).replace('&lt;', '<').replace('&gt;', '>').replace('\r', ' ').replace('\n', ' ')
             if self.stack[-1] == 'user':
                 if name == 'location':
-                    self.location = ''.join(self.chars)
+                    self.tweet['location'] = ''.join(self.chars)
                 if name == 'screen_name':
-                    self.screen_name = ''.join(self.chars)
+                    self.tweet['screen_name'] = ''.join(self.chars)
 
     def endDocument(self):
-        #print self.id, self.text
-        #print '-', self.screen_name, self.location
-        print '%20s - %s' % (self.screen_name, self.text)
+        if 'id' in self.tweet and 'screen_name' in self.tweet and  'text' in self.tweet:
+            print '%(screen_name)20s - %(text)s' % self.tweet
+        else:
+            self.tweet = False
+
+def queue_tweet(store, tweet):
+    """
+    """
+    store.set('tweet-%(id)s' % tweet, json.dumps(tweet))
+    store.expire('tweet-%(id)s' % tweet, 300)
+    store.push('stream', 'tweet-%(id)s' % tweet)
 
 parser = optparse.OptionParser(usage="""stream.py [options]
 """)
@@ -125,6 +131,8 @@ if __name__ == '__main__':
     firehose = opener.open(request)
     handler = TweetHandler()
     
+    store = redis.Redis()
+    
     while True:
         # read tweets line-by-line, breaking on lines that start with an XML header
         line = firehose.readline()
@@ -141,7 +149,10 @@ if __name__ == '__main__':
                     # when the end has been overshot, parse what we've got
                     try:
                         xml.sax.parseString(''.join(lines).strip(), handler)
+                        if handler.tweet:
+                            queue_tweet(store, handler.tweet)
                     except Exception, e:
+                        raise
                         pdb.set_trace()
 
                     # move on to the next tweet
