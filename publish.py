@@ -1,3 +1,4 @@
+import re
 import time
 import json
 import math
@@ -9,7 +10,15 @@ rate = 2
 
 if __name__ == '__main__':
 
+    prev = None
+    curr = 0
+    
+    # from http://daringfireball.net/2009/11/liberal_regex_for_matching_urls
+    urls = re.compile(r'\b(([\w-]+://?|www[.])[^\s()<>]+(?:\([\w\d]+\)|([^\!\'\#\%\&\'\(\)\*\+\,-\.\/\:\;\<\=\>\?\@\[\/\]\^\_\{\|\}\~\s]|/)))')
+
     while True:
+        next = curr + 1
+        
         start = time.time()
         
         tweets = []
@@ -38,7 +47,14 @@ if __name__ == '__main__':
 
         for tweet in tweets:
             print '%(screen_name)20s - %(text)s' % tweet
+            
+            if urls.search(tweet['text']):
+                print ' ' * 22, ', '.join([group[0] for group in urls.findall(tweet['text'])])
         
         store.disconnect()
         
+        print '-' * 20, prev, '<--', curr, '-->', next
+        
         time.sleep(start + delay - time.time())
+        
+        prev, curr = curr, next
