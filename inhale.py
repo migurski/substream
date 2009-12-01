@@ -1,7 +1,6 @@
 import pdb
 import sys
 import re
-import json
 import redis
 import socket
 import base64
@@ -9,13 +8,6 @@ import urllib
 import select
 import urlparse
 import optparse
-
-def queue_tweet(store, tweet):
-    """
-    """
-    store.set('tweet-%(id)s' % tweet, json.dumps(tweet))
-    store.expire('tweet-%(id)s' % tweet, 300)
-    store.push('stream', 'tweet-%(id)s' % tweet)
 
 def connect(username, password, filter):
     """
@@ -72,8 +64,7 @@ def stream_lines(username, password, filter):
         else:
             continue
         
-
-parser = optparse.OptionParser(usage="""stream.py [options]
+parser = optparse.OptionParser(usage="""inhale.py [options]
 """)
 
 parser.add_option('-u', '--username', dest='username',
@@ -98,24 +89,11 @@ if __name__ == '__main__':
     for line in firehose:
         if line.startswith('{'):
             try:
-                tweet, message = {}, json.loads(line)
-                
-                if message.has_key('delete'):
-                    continue
-                
-                if message.has_key('limit'):
-                    print '*' * 60, 'skipped', message['limit']['track']
-                    continue
-                
-                tweet['id'] = str(message['id'])
-                tweet['text'] = message['text'].replace('&lt;', '<').replace('&gt;', '>')
-                tweet['location'] = message['user']['location']
-                tweet['screen_name'] = message['user']['screen_name']
-
-                print '%(screen_name)20s - %(text)s' % tweet
+                tweet = line.strip()
+                print tweet[:64], '...'
 
             except Exception, e:
                 pdb.set_trace()
 
             else:
-                queue_tweet(store, tweet)
+                store.push('intake', tweet)
