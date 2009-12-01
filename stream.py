@@ -6,6 +6,7 @@ import redis
 import socket
 import base64
 import urllib
+import select
 import urlparse
 import optparse
 
@@ -16,8 +17,8 @@ def queue_tweet(store, tweet):
     store.expire('tweet-%(id)s' % tweet, 300)
     store.push('stream', 'tweet-%(id)s' % tweet)
 
-def stream_lines(username, password, filter):
-    """ Connect to Twitter firehose, and yield each line of the HTTP response.
+def connect(username, password, filter):
+    """
     """
     if filter:
         address = 'http://stream.twitter.com/1/statuses/filter.json?track=' + urllib.quote(filter)
@@ -27,22 +28,49 @@ def stream_lines(username, password, filter):
     scheme, host, path, p, query, f = urlparse.urlparse(address)
     credentials = base64.b64encode(username + ':' + password)
     
-    twitter = socket.create_connection((host, 80), 600)
+    twitter = socket.create_connection((host, 80), 60)
+    twitter.setblocking(0)
+    
     twitter.send('GET %(path)s?%(query)s HTTP/1.1\n' % locals())
     twitter.send('Authorization: Basic %(credentials)s\n' % locals())
     twitter.send('Host: %(host)s\n\n' % locals())
+    
+    return twitter
+
+def stream_lines(username, password, filter):
+    """ Connect to Twitter firehose, and yield each line of the HTTP response.
+    """
+    twitter = connect(username, password, filter)
     
     # the tail end of the previous chunk
     data = ''
 
     while True:
-        chunk = data + twitter.recv(1024)
-        lines = re.split(r'[\r\n]+', chunk)
+        readable, writeable, errorable = select.select([twitter], [], [twitter], 60)
         
-        for line in lines[:-1]:
-            yield line
+        if len(errorable):
+            pdb.set_trace()
+        
+        elif len(readable):
+            chunk = readable[0].recv(128)
+            
+            if len(chunk):
+                # yay some data
+                lines = re.split(r'[\r\n]+', data + chunk)
+                
+                for line in lines[:-1]:
+                    yield line
+        
+                data = lines[-1]
 
-        data = lines[-1]
+            else:
+                # for some reason, the socket can get stuck in a place of endless zero
+                twitter.close()
+                twitter = connect(username, password, filter)
+                continue
+            
+        else:
+            continue
         
 
 parser = optparse.OptionParser(usage="""stream.py [options]
