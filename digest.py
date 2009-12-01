@@ -10,6 +10,7 @@ import select
 import pprint
 import urlparse
 import optparse
+import operator
 
 parser = optparse.OptionParser(usage="""digest.py [options]
 """)
@@ -28,7 +29,7 @@ if __name__ == '__main__':
     
     store = redis.Redis()
 
-    words_pat = re.compile(r"#?\w+(?:'(?:t)(?:re))?", re.UNICODE)
+    words_pat = re.compile(r"[@#]?\w+(?:'(?:t)(?:re))?", re.UNICODE)
     
     # from http://daringfireball.net/2009/11/liberal_regex_for_matching_urls
     urls_pat = re.compile(r'\b((?:[\w-]+://?|www[.])[^\s()<>]+(?:\([\w\d]+\)|(?:[^\!\'\#\%\&\'\(\)\*\+\,-\.\/\:\;\<\=\>\?\@\[\/\]\^\_\{\|\}\~\s]|/)))')
@@ -88,8 +89,10 @@ if __name__ == '__main__':
                 else:
                     tokens += words_pat.findall(part)
             
-            print tokens
+            tokens = set([token.lower() for token in tokens])
+            
+            for (index, token) in enumerate(sorted(tokens)):
+                print ' ', index, token
 
-            break
         except:
             raise # pdb.set_trace()
